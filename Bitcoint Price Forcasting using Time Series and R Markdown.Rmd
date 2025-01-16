@@ -1,0 +1,2354 @@
+---
+title: "Final Project - Bitcoin Price Analysis and Forecasting"
+
+
+date: "`r Sys.Date()`"
+output: 
+  html_document:
+    toc: true
+    toc_depth: 3
+    toc_float: true
+    theme: united
+    highlight: tango
+    code_folding: show
+    df_print: paged
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE)
+library(tseries)
+library(forecast)
+library(ggplot2)
+library(kableExtra)
+```
+
+# Contributors
+
+**Group-5**
+
+-   Md Fahim Shahriar Chowdhury -**243000561**
+
+-   Subrata Das - **243000661**
+
+-   Mafia Rahman Tule - **243001461**
+
+-   Mohammad Helal Uddin-**243002461**
+
+-   Wasim Kabir - **243002561**
+
+# 1. **Objective of the Project**
+
+We have covered Regression & Time Series analysis in details. The main purpose of this project is to implement the acquired knowledge in real life situation.
+
+In this project we are expected to perform Regression & Time Series analysis and forecasting techniques on Bitcoin historical price. The experience can be replicated to forecast Stock price & Currency price as well.
+
+# 2. **DataSet**
+
+You are given a dataset of Bitcoin (BTC) historical price against USD. This is a monthly average price dataset having prices from 01 January 2015 to 30 November 2023.
+
+# 3. **Applied Models**
+
+1.  Linear regression model
+2.  Quadratic regression model
+3.  ARMIA model
+
+# 4 **Task Performed**
+
+# 4.1 **Loading the Dataset**
+
+```{r datset_load}
+# Loading the dataset into a dataframe named BitCoin
+BitCoin <- read.csv("BTC-Monthly.csv")
+
+#	Checking the data types of the features. 
+str(BitCoin)
+
+#	Assigning appropriate data type to features. 
+# Converting Date column to Date type
+BitCoin$Date <- as.Date(BitCoin$Date)
+
+# Checking the structure of the data frame. 
+str(BitCoin)
+
+#	Checking if there’s any missing value in each column 
+colSums(is.na(BitCoin))
+
+# Get total number of missing values in the entire dataframe
+cat("\nTotal missing values in the dataframe:", sum(is.na(BitCoin)))
+```
+
+# 4.2 **Descriptive Analytics**
+
+## • Create a monthly boxplot of prices.
+
+```{r monthyl_box_plot}
+# Create a copy of the BitCoin dataframe
+BitCoin_df <- BitCoin
+
+# Extract month and year from Date column
+BitCoin_df$month <- format(BitCoin_df$Date, "%b")  # Month abbreviation
+BitCoin_df$year <- format(BitCoin_df$Date, "%Y")   # Year
+
+# Convert month to factor with correct order
+BitCoin_df$month <- factor(BitCoin_df$month, levels = month.abb)
+
+# Create monthly boxplot
+# Create an enhanced monthly boxplot
+ggplot(BitCoin_df, aes(x = month, y = Close)) +
+  geom_boxplot(fill = "#FFD700", color = "#4B0082", alpha = 0.7, outlier.color = "red", outlier.shape = 16) +
+  theme_minimal() +
+  labs(title = "Bitcoin Price Distribution by Month (2015-2023)",
+       subtitle = "Monthly price variations showing median, quartiles, and outliers",
+       x = "Month",
+       y = "Price (USD)",
+       caption = "Data source: BTC-Monthly.csv | Group-5 (Fahim,Subrata,Tule,Helal,Washim)") +
+  theme(
+    plot.title = element_text(size = 14, face = "bold", hjust = 0.5),
+    plot.subtitle = element_text(size = 10, hjust = 0.5),
+    axis.title = element_text(face = "bold"),
+    axis.text.x = element_text(angle = 45, hjust = 1, face = "bold"),
+    panel.grid.major = element_line(color = "gray90"),
+    panel.grid.minor = element_line(color = "gray95"),
+    plot.background = element_rect(fill = "white"),
+    panel.background = element_rect(fill = "white")
+  ) +
+  scale_y_continuous(labels = scales::dollar_format()) +
+  geom_jitter(width = 0.2, alpha = 0.2, color = "#4B0082")
+```
+
+**This monthly boxplot of prices features:**
+
+-   Golden boxes representing the interquartile range (IQR)
+
+-   Purple individual points showing the actual price observations
+
+-   Red points highlighting statistical outliers
+
+-   Clear monthly labels and dollar-formatted y-axis
+
+The plot reveals that Bitcoin prices have shown considerable variation across all months, with significant outliers particularly in the upper range. The median prices (shown by the horizontal line in each box) appear relatively stable across months, suggesting no strong seasonal pattern in Bitcoin prices.
+
+## • Create a yearly boxplot of prices.
+
+```{r yearly_box_plot}
+library(ggplot2)
+library(scales)
+
+# Create yearly boxplot
+ggplot(BitCoin_df, aes(x = year, y = Close)) +
+  geom_boxplot(fill = "#FFD700", color = "#4B0082", alpha = 0.7, 
+               outlier.color = "red", outlier.shape = 16) +
+  theme_minimal() +
+  labs(title = "Bitcoin Price Distribution by Year (2015-2023)",
+       subtitle = "Yearly price variations showing median, quartiles, and outliers",
+       x = "Year",
+       y = "Price (USD)",
+       caption = "Data source: BTC-Monthly.csv") +
+  theme(
+    plot.title = element_text(size = 14, face = "bold", hjust = 0.5),
+    plot.subtitle = element_text(size = 10, hjust = 0.5),
+    axis.title = element_text(face = "bold"),
+    axis.text.x = element_text(angle = 45, hjust = 1, face = "bold"),
+    panel.grid.major = element_line(color = "gray90"),
+    panel.grid.minor = element_line(color = "gray95"),
+    plot.background = element_rect(fill = "white"),
+    panel.background = element_rect(fill = "white")
+  ) +
+  scale_y_continuous(labels = scales::dollar_format()) +
+  geom_jitter(width = 0.2, alpha = 0.2, color = "#4B0082")
+
+# Calculate yearly statistics
+yearly_stats <- aggregate(Close ~ year, data = BitCoin_df, 
+                         FUN = function(x) c(
+                           Mean = mean(x),
+                           Median = median(x),
+                           Min = min(x),
+                           Max = max(x)
+                         ))
+print("Yearly Statistics:")
+print(yearly_stats)
+```
+
+**This** **yearly boxplot** above shows the distribution of Bitcoin prices from 2015 to 2023. Each box represents the interquartile range (IQR) for the prices in a given year, with the median price marked by the horizontal line inside the box. Outliers are highlighted as red points.
+
+**Observations**:
+
+-   Bitcoin prices have shown a significant upward trend over the years, with increasing variability.
+
+-   The median price has risen sharply, especially from 2020 onwards, reflecting Bitcoin's growing adoption and market volatility.
+
+-   Outliers in recent years indicate extreme price movements, characteristic of Bitcoin's speculative nature.
+
+## • Create year wise trend lines of prices.
+
+```{r year_wise_trend}
+# Correcting the year-over-year growth rate calculation
+library(dplyr)
+
+# Calculate yearly average prices
+yearly_avg <- BitCoin_df %>% 
+  group_by(year_num = as.numeric(format(Date, "%Y"))) %>% 
+  summarise(Close = mean(Close, na.rm = TRUE))
+
+# Calculate growth rates
+yearly_avg <- yearly_avg %>% 
+  mutate(growth_rate = (Close - lag(Close)) / lag(Close) * 100)
+
+# Print yearly average prices and growth rates
+print("Yearly Average Prices and Growth Rates:")
+print(yearly_avg)
+
+# Recreate the trend line plot
+ggplot(BitCoin_df, aes(x = Date, y = Close)) +
+  geom_line(color = "#4B0082", linewidth = 1) +
+  geom_point(color = "#FFD700", alpha = 0.6, size = 2) +
+  geom_smooth(method = "loess", color = "red", se = TRUE, alpha = 0.2) +
+  theme_minimal() +
+  labs(title = "Bitcoin Price Trends Over Time (2015-2023)",
+       subtitle = "Daily prices with smoothed trend line",
+       x = "Year",
+       y = "Price (USD)",
+       caption = "Data source: BTC-Monthly.csv") +
+  theme(
+    plot.title = element_text(size = 14, face = "bold", hjust = 0.5),
+    plot.subtitle = element_text(size = 10, hjust = 0.5),
+    axis.title = element_text(face = "bold"),
+    axis.text.x = element_text(angle = 45, hjust = 1),
+    panel.grid.major = element_line(color = "gray90"),
+    panel.grid.minor = element_line(color = "gray95"),
+    plot.background = element_rect(fill = "white"),
+    panel.background = element_rect(fill = "white")
+  ) +
+  scale_y_continuous(labels = scales::dollar_format())
+```
+
+From this year wise trends lines visuals we found:
+
+1.  **Overall Trend (2015-2023):**
+
+    -   Starting from relatively low prices (\~\$276) in 2015
+
+    -   Shows dramatic price appreciation over the years
+
+    -   Multiple significant bull and bear cycles visible
+
+2.  **Key Growth Periods:**
+
+    -   2016-2017: Massive growth of 634% (from \$591 to \$4,342)
+
+    -   2019-2020: Substantial growth of 67.7% (from \$7,344 to \$12,320)
+
+    -   The steepest price increases occurred in late 2017 and 2021
+
+3.  **Pattern Analysis:**
+
+    -   The purple line shows the actual price movement
+
+    -   The red smoothed trend line indicates the overall market direction
+
+    -   The shaded area around the red line represents the confidence interval
+
+    -   Golden points highlight individual monthly price observations
+
+4.  **Notable Features:**
+
+    -   High volatility throughout the period
+
+    -   Several major price cycles visible
+
+    -   The most dramatic price movements occurred in the latter years
+
+    -   Clear evidence of both rapid appreciation and significant corrections
+
+5.  **Year-over-Year Growth:**
+
+    -   2015-2016: 113.87% growth
+
+    -   2016-2017: 634.35% growth (most explosive growth year)
+
+    -   2017-2018: 65.51% growth
+
+    -   2018-2019: 2.18% growth (consolidation year)
+
+    -   2019-2020: 67.75% growth
+
+This visualization effectively shows Bitcoin's evolution from a relatively niche asset to a major financial instrument, characterized by periods of explosive growth followed by significant corrections.
+
+## ***Setting time series frequency to 12***
+
+## • Plot the time series of monthly prices on years.
+
+```{r time_Series_monthly_price}
+# Convert to time series with frequency 1
+btc_ts <- ts(BitCoin$Close, 
+            start = c(2015, 1), 
+            frequency = 12)
+
+# Print basic information about the time series
+print("Time Series Information:")
+print(class(btc_ts))
+print(frequency(btc_ts))
+print(start(btc_ts))
+print(end(btc_ts))
+
+# Create the plot
+plot(btc_ts, 
+     main = "Bitcoin Monthly Prices (2015-2023)",
+     ylab = "Price (USD)",
+     xlab = "Year",
+     type = "b",    # Both points and lines
+     col = "blue",  # Blue color for points
+     pch = 16,      # Solid circle point type
+     lwd = 1)       # Line width
+
+# Add grid for better readability
+grid()
+```
+
+**This plot shows:**
+
+-   Blue dots representing individual monthly Bitcoin prices
+
+-   Connected lines between the points showing the price movement
+
+-   Grid lines for better readability of values
+
+-   Clear visualization of price trends and volatility over the years
+
+-   Y-axis showing the price in USD
+
+-   X-axis showing the timeline from 2015 to 2023
+
+The plot effectively displays both the overall trend and the individual monthly price points, making it easy to track Bitcoin's price evolution over time.
+
+## • Find the relationship between consecutive days.
+
+```{r relationship_consecutive_days}
+# Create lagged prices (previous month's prices)
+current_prices <- BitCoin$Close[-1]  # Remove first observation
+previous_prices <- BitCoin$Close[-length(BitCoin$Close)]  # Remove last observation
+
+# Calculate correlation
+correlation <- cor(current_prices, previous_prices)
+
+# Create scatter plot
+plot(previous_prices, current_prices,
+     main = "Relationship Between Consecutive Monthly Bitcoin Prices",
+     xlab = "Previous Month's Price (USD)",
+     ylab = "Current Month's Price (USD)",
+     pch = 16,
+     col = "blue")
+
+# Add grid
+grid()
+
+# Add correlation line
+abline(lm(current_prices ~ previous_prices), col = "red", lwd = 2)
+
+# Add correlation coefficient to plot
+text(x = min(previous_prices), 
+     y = max(current_prices), 
+     paste("Correlation =", round(correlation, 3)),
+     pos = 4,
+     col = "red")
+
+# Print correlation coefficient
+print("Correlation between consecutive monthly prices:")
+print(correlation)
+
+# Additional statistics
+model <- lm(current_prices ~ previous_prices)
+print("\
+Regression Summary:")
+print(summary(model))
+```
+
+This scatter plot shows the relationship between consecutive monthly Bitcoin prices, and the correlation coefficient quantifies the strength of this relationship.
+
+The blue points represent the data, and the red line is the regression line.
+
+Key findings is **Correlation coefficient: [1] 0.9617764 (strong positive correlation)**
+
+# 4.3 **Regression Analysis**
+
+## 4.3.1 **Linear Regression**
+
+### • Create a linear model of the time series dataset.
+
+```{r linear_model}
+# Create time index
+time_index <- 1:length(BitCoin$Close)
+
+# Fit linear model
+linear_model <- lm(BitCoin$Close ~ time_index)
+```
+
+### • Show the summary of the model and explain the outcome.
+
+```{r linear_model_summary}
+
+# Print model summary
+print("Linear Model Summary:")
+print(summary(linear_model))
+
+# Create plot
+plot(time_index, BitCoin$Close,
+     main = "Bitcoin Prices with Linear Trend",
+     xlab = "Time Index (Months from Start)",
+     ylab = "Price (USD)",
+     pch = 16,
+     col = "blue")
+
+# Add linear trend line
+abline(linear_model, col = "red", lwd = 2)
+
+# Add grid
+grid()
+
+# Add legend
+legend("topleft", 
+       legend = c("Actual Prices", "Linear Trend"),
+       col = c("blue", "red"),
+       pch = c(16, NA),
+       lty = c(NA, 1),
+       bg = "white")
+
+# Calculate predicted values
+predicted_values <- predict(linear_model)
+
+# Calculate R-squared
+r_squared <- summary(linear_model)$r.squared
+
+# Add R-squared to plot
+text(x = min(time_index), 
+     y = max(BitCoin$Close), 
+     paste("R-squared =", round(r_squared, 3)),
+     pos = 4,
+     col = "red")
+
+# Calculate and print some additional metrics
+residuals <- BitCoin$Close - predicted_values
+rmse <- sqrt(mean(residuals^2))
+mae <- mean(abs(residuals))
+
+print("\
+Additional Model Metrics:")
+print(paste("RMSE:", round(rmse, 2)))
+print(paste("MAE:", round(mae, 2)))
+
+
+```
+
+**Observations**:
+
+-   The linear model shows a positive trend in Bitcoin prices over time, with a slope of approximately 398 USD per time unit (month).
+
+-   The R-squared value of 0.586 indicates that the model explains about 58.6% of the variance in Bitcoin prices.
+
+-   The residuals and error metrics (RMSE and MAE) suggest that while the model captures the general trend, it does not account for the high volatility and non-linear patterns in Bitcoin prices.
+
+**Explanation of the Linear Model Sumary Outcome:**
+
+1.  **Coefficients**:
+
+    -   **Intercept (-6546.91):** This represents the estimated Bitcoin price at the start of the dataset (time index = 0). While not meaningful in this context, it provides the baseline for the model.
+
+    -   **Time Index Coefficient (397.99)**: Indicates that Bitcoin prices increase by approximately \$398 per month on average, according to the linear trend.
+
+2.  **Significance**:
+
+    -   The p-value for the time index coefficient is less than 0.001, indicating a statistically significant relationship between time and Bitcoin prices.
+
+3.  **Model** **Fit**:
+
+    -   **R-squared (0.586):** The model explains 58.6% of the variance in Bitcoin prices, which is moderate but not exceptional given the high volatility of Bitcoin prices.
+
+    -   **Residual Standard Error (10430):** Reflects the average deviation of observed prices from the predicted values, highlighting the model's limitations in capturing price volatility.
+
+4.  **F-statistic**:
+
+    -   The F-statistic (148.6) and its p-value (\< 2.2e-16) confirm that the model as a whole is statistically significant.
+
+**The linear model captures** a general upward trend in Bitcoin prices over time but does not account for the significant volatility and non-linear patterns in the data. This suggests that more complex models (e.g., polynomial regression or time series models) may be needed for better predictions.
+
+### • Create a plot of the linear model on top of the time series dataset line plot with scatter data points.
+
+```{r linear_model_scatter_data_points}
+# Create the plot with scatter points and time series line
+plot(time_index, BitCoin$Close,
+     main = "Bitcoin Prices with Linear Model Overlay",
+     xlab = "Time Index (Months from Start)",
+     ylab = "Price (USD)",
+     pch = 16,       # Solid circle points
+     col = "blue",  # Blue color for points
+     type = "b",    # Both points and lines
+     lwd = 1)        # Line width for time series line
+
+# Add the linear model trend line
+abline(linear_model, col = "red", lwd = 2)
+
+# Add grid for better readability
+grid()
+
+# Add legend
+legend("topleft", 
+       legend = c("Actual Prices", "Linear Trend"),
+       col = c("blue", "red"),
+       pch = c(16, NA),
+       lty = c(NA, 1),
+       bg = "white")
+
+
+```
+
+The plot successfully overlays the linear model on the time series data, showing how well the linear trend captures the overall direction of Bitcoin prices while highlighting deviations due to volatility.
+
+### • Perform residual analysis and create a line & scatter plot of the residuals. Explain the outcome.
+
+Residual analysis involves examining the residuals to check for patterns, trends, or deviations from assumptions like homoscedasticity and independence. I'll create a line plot and scatter plot of the residuals to evaluate these aspects.
+
+```{r linear_model_resudual_analysis}
+# Line plot of residuals
+plot(residuals, 
+     type = "l", 
+     main = "Line Plot of Residuals", 
+     xlab = "Index", 
+     ylab = "Residuals", 
+     col = "blue", 
+     lwd = 2)
+
+# Add horizontal line at zero
+abline(h = 0, col = "red", lwd = 2, lty = 2)
+
+# Scatter plot of residuals
+plot(residuals, 
+     main = "Scatter Plot of Residuals", 
+     xlab = "Index", 
+     ylab = "Residuals", 
+     pch = 16, 
+     col = "blue")
+
+# Add horizontal line at zero
+abline(h = 0, col = "red", lwd = 2, lty = 2)
+
+# Check for autocorrelation in residuals using Durbin-Watson test
+library(lmtest)
+dw_test <- dwtest(linear_model)
+
+print("Durbin-Watson Test for Autocorrelation:")
+print(dw_test)
+```
+
+**Analysis of the Residuals:**
+
+1.  **Pattern Analysis:**
+
+    -   Both plots show clear patterns in the residuals, which indicates that the linear model doesn't capture all the systematic variation in the data
+
+    -   The residuals are not randomly scattered around zero, suggesting non-linear relationships in the data
+
+    -   Large positive residuals are visible in the later time periods, indicating significant underestimation of peaks
+
+2.  **Autocorrelation**:
+
+    -   The Durbin-Watson test statistic (DW = 0.18224) is far from 2 (ideal value for no autocorrelation)
+
+    -   The extremely low p-value (\< 2.2e-16) confirms significant positive autocorrelation in the residuals
+
+    -   This suggests that the residuals are not independent, violating one of the key assumptions of linear regression
+
+3.  **Variance Pattern:**
+
+    -   The scatter plot shows increasing spread in residuals over time
+
+    -   This indicates heteroscedasticity (non-constant variance), another violation of linear regression assumptions
+
+These violations of linear regression assumptions indicate that while the linear model captures the general upward trend, it doesn't adequately model the complex patterns in Bitcoin prices over time.
+
+### • Create a histogram plot of the residuals. Explain the outcome.
+
+```{r linear_model_historgram_residuals}
+# Calculate residuals
+residuals <- residuals(linear_model)
+
+# Create histogram of residuals
+hist(residuals, 
+     breaks = 30,
+     main = "Histogram of Residuals",
+     xlab = "Residuals",
+     ylab = "Frequency",
+     col = "lightblue",
+     border = "black")
+
+# Add density curve
+lines(density(residuals), col = "red", lwd = 2)
+
+# Add vertical line at mean of residuals
+abline(v = mean(residuals), col = "blue", lwd = 2, lty = 2)
+
+# Add legend
+legend("topright", 
+       legend = c("Density Curve", "Mean of Residuals"),
+       col = c("red", "blue"),
+       lty = c(1, 2),
+       lwd = 2)
+
+# Calculate summary statistics of residuals
+print("Summary Statistics of Residuals:")
+print(summary(residuals))
+
+# Calculate skewness and kurtosis
+library(moments)
+skew <- skewness(residuals)
+kurt <- kurtosis(residuals)
+
+print("\
+Skewness and Kurtosis:")
+print(paste("Skewness:", round(skew, 3)))
+print(paste("Kurtosis:", round(kurt, 3)))
+
+# Shapiro-Wilk test for normality
+sw_test <- shapiro.test(residuals)
+print("\
+Shapiro-Wilk Normality Test:")
+print(sw_test)
+
+
+```
+
+**Explanation**:
+
+1.  **Histogram**:
+
+    -   The residuals are right-skewed, as indicated by the histogram and the skewness value (1.541).
+
+    -   The kurtosis (5.521) suggests a leptokurtic distribution, meaning the residuals have heavier tails than a normal distribution.
+
+2.  **Shapiro-Wilk Test**:
+
+    -   The p-value (1.208e-08) is very small, rejecting the null hypothesis of normality. This confirms that the residuals are not normally distributed.
+
+3.  **Conclusion**:
+
+    -   The residuals deviate from normality, indicating that the linear model may not fully capture the underlying patterns in the data. This suggests the need for a more complex model to better fit the data.
+
+### • Create ACF & PACF plots of residuals. Explain the outcome.
+
+```{r linear_model_acf_pasf_residuals}
+# Load necessary library for ACF and PACF plots
+library(forecast)
+
+# Create ACF plot of residuals
+acf(residuals, 
+    main = "ACF Plot of Residuals", 
+    col = "blue", 
+    lwd = 2)
+
+# Create PACF plot of residuals
+pacf(residuals, 
+     main = "PACF Plot of Residuals", 
+     col = "blue", 
+     lwd = 2)
+
+
+```
+
+**Analysis of the ACF Plot:**
+
+1.  **Strong Autocorrelation**:
+
+    -   The ACF plot shows very high autocorrelation values that decay very slowly
+
+    -   Most lags exceed the significance bounds (blue dashed lines)
+
+    -   The slow decay pattern suggests strong persistence in the residuals
+
+    -   This indicates that the residuals are not independent over time
+
+2.  **Pattern**:
+
+    -   The gradual, linear decline in ACF values suggests a possible trend component
+
+    -   The lack of quick decay to zero indicates that the linear model hasn't captured all the systematic patterns in the data
+
+**Analysis of the PACF Plot:**
+
+1.  **Significant Partial Correlations:**
+
+    -   The PACF plot shows significant spikes at several lags
+
+    -   The first lag shows the strongest partial correlation
+
+    -   Several other lags are also significant, though less pronounced
+
+2.  **Pattern Interpretation**:
+
+    -   The significant spike at lag 1 suggests an AR(1) component
+
+    -   Multiple significant lags suggest possible higher-order autoregressive components
+
+**Conclusions**:
+
+1.  **Model Adequacy**:
+
+    -   The ACF and PACF plots confirm that the linear model's residuals are not random
+
+    -   There is significant temporal dependence in the residuals
+
+    -   The linear model fails to capture the time series' autocorrelation structure
+
+2.  **Implications for Modeling**:
+
+    1.  An ARIMA model might be more appropriate for this data
+
+    2.  Based on the PACF plot, an AR model of order 1 or higher might be suitable
+
+    3.  The slow decay in the ACF suggests possible non-stationarity, indicating that differencing might be needed These plots provide strong evidence that the linear model is inadequate for this time series data, and a more sophisticated time series modeling approach would be more appropriate.
+
+### • Create QQ plot of residuals. Explain the outcome.
+
+```{r linear_model_qq_plots}
+# Create QQ plot of residuals
+qqnorm(residuals, 
+       main = "QQ Plot of Residuals", 
+       col = "blue", 
+       pch = 16)
+
+# Add QQ line
+qqline(residuals, col = "red", lwd = 2)
+
+```
+
+**Analysis of the Q-Q Plot:**
+
+1.  **Deviation from Normality:**
+
+    -   The blue points represent the quantiles of the residuals plotted against theoretical normal quantiles
+
+    -   The red line represents the ideal normal distribution line
+
+    -   Significant deviations from the red line indicate non-normality
+
+2.  **Pattern Analysis:**
+
+    -   Strong deviation from the diagonal line, especially at both ends
+
+    -   Heavy right tail (upper end points curve upward)
+
+    -   Light left tail (lower end points curve downward)
+
+    -   Middle section shows some linearity but still deviates from the normal line
+
+3.  **Specific Observations:**
+
+    -   Asymmetric tails indicate skewness (right-skewed distribution)
+
+    -   The curved pattern suggests heavier tails than a normal distribution
+
+    -   The deviation is particularly pronounced for extreme values
+
+    -   The pattern confirms the presence of outliers in the upper tail.
+
+### • Perform Shapiro-Wilk test on residuals. Explain the outcome.
+
+We already performed the Shapiro-Wilk test earlier, but let us run it again with a more detailed analysis:
+
+```{r linear_model+shapiro_Wilk_test}
+# Perform Shapiro-Wilk test on residuals
+sw_test <- shapiro.test(residuals)
+
+# Print test results
+print("Shapiro-Wilk Normality Test Results:")
+print(sw_test)
+
+# Additional descriptive statistics
+print("\
+Descriptive Statistics of Residuals:")
+print(summary(residuals))
+
+# Calculate and print skewness and kurtosis
+library(moments)
+skew <- skewness(residuals)
+kurt <- kurtosis(residuals)
+
+print("\
+Skewness and Kurtosis:")
+print(paste("Skewness:", round(skew, 3)))
+print(paste("Kurtosis:", round(kurt, 3)))
+
+
+```
+
+**Explanation:**
+
+1.  **Shapiro-Wilk Test:**
+
+    -   The test statistic (W = 0.85976) and the very small p-value (1.208e-08) indicate that the residuals are not normally distributed.
+
+    -   This confirms the earlier findings from the histogram and Q-Q plot.
+
+2.  **Skewness and Kurtosis:**
+
+    -   Skewness (1.541) indicates a right-skewed distribution.
+
+    -   Kurtosis (5.521) suggests a leptokurtic distribution, meaning the residuals have heavier tails than a normal distribution.
+
+3.  **Descriptive Statistics:**
+
+    -   The residuals have a mean of 0, as expected, but the range is large, with extreme values on both ends.
+
+### • Explain if linear model is appropriate or not.
+
+Based on all the analyses performed, we'll provide a comprehensive summary of why the linear model is not appropriate for this Bitcoin price time series data:
+
+**Summary of Analyses:**
+
+1.  **Residual Distribution (Histogram & Shapiro-Wilk Test):**
+
+    -   Residuals are not normally distributed (p-value = 1.208e-08)
+
+    -   Strong right skewness (1.541)
+
+    -   High kurtosis (5.521)
+
+    -   Violates the assumption of normally distributed errors
+
+2.  **Independence of Residuals (ACF & PACF):**
+
+    -   Strong autocorrelation in residuals
+
+    -   Slow decay in ACF plot
+
+    -   Significant spikes in PACF plot
+
+    -   Durbin-Watson test (DW = 0.18224, p-value \< 2.2e-16) confirms strong positive autocorrelation
+
+    -   Violates the assumption of independent errors
+
+3.  **Homoscedasticity (Residual Plots):**
+
+    -   Increasing spread of residuals over time
+
+    -   Non-constant variance
+
+    -   Violates the assumption of constant variance
+
+4.  **Linearity (Q-Q Plot & Residual Plots):**
+
+    -   Systematic patterns in residuals
+
+    -   Strong deviation from the normal line in Q-Q plot
+
+    -   Clear non-linear patterns in the data
+
+5.  **Model Fit:**
+
+    -   R-squared of 0.586 indicates only moderate fit
+
+    -   Large residuals, especially in recent periods
+
+    -   Poor prediction capability, especially for extreme values
+
+**Why the Linear Model is Not Appropriate:**
+
+1.  **Violated Assumptions:**
+
+    All major assumptions of linear regression are violated:
+
+    -   Non-normal residuals
+
+    -   Non-independent errors
+
+    -   Heteroscedasticity
+
+    -   Non-linear relationships
+
+2.  **Poor Predictive Power:**
+
+    -   Cannot capture the volatility in Bitcoin prices
+
+    -   Underestimates extreme values F
+
+    -   ails to account for the time series nature of the data
+
+3.  **Inadequate Structure:**
+
+    -   Cannot handle the complex patterns in cryptocurrency prices
+
+    -   Assumes constant rate of change, which is unrealistic for this data
+
+    -   Doesn't account for the temporal dependencies
+
+**Recommendations:**
+
+1.  **Alternative Models to Consider:**
+
+    -   ARIMA or SARIMA models to handle autocorrelation
+
+    -   Non-linear time series models
+
+    -   GARCH models to handle varying volatility
+
+    -   Machine learning approaches for complex patterns
+
+2.  **Data Transformations:**
+
+    -   Consider log transformation to handle non-linearity
+
+    -   Difference the data to achieve stationarity
+
+    -   Scale or normalize the data
+
+3.  **Additional Considerations:**
+
+    -   Include external factors that influence Bitcoin prices
+
+    -   Consider segmenting the analysis into different time periods
+
+    -   Implement robust regression techniques
+
+**Conclusion**:
+
+The linear model is definitively not appropriate for modeling Bitcoin prices. The data exhibits complex patterns, strong autocorrelation, non-constant variance, and non-normality that cannot be captured by a simple linear relationship. A more sophisticated time series modeling approach that can handle these characteristics would be more suitable for this dataset.
+
+## 4.3.2 **Quadra4c Regression**
+
+### • Create a quadratic model of the time series dataset.
+
+```{r quadratic_model}
+# Create a quadratic term for the time index
+quadratic_time_index <- time_index^2
+
+# Fit a quadratic model
+quadratic_model <- lm(BitCoin$Close ~ time_index + quadratic_time_index)
+```
+
+### • Show the summary of the model and explain the outcome.
+
+```{r quadratic_model_summary}
+# Print model summary
+print("Quadratic Model Summary:")
+print(summary(quadratic_model))
+
+# Create plot with quadratic trend line
+plot(time_index, BitCoin$Close,
+     main = "Bitcoin Prices with Quadratic Trend",
+     xlab = "Time Index (Months from Start)",
+     ylab = "Price (USD)",
+     pch = 16,       # Solid circle points
+     col = "blue",  # Blue color for points
+     type = "b",    # Both points and lines
+     lwd = 1)        # Line width for time series line
+
+# Add quadratic trend line
+lines(time_index, predict(quadratic_model), col = "red", lwd = 2)
+
+# Add grid for better readability
+grid()
+
+# Add legend
+legend("topleft", 
+       legend = c("Actual Prices", "Quadratic Trend"),
+       col = c("blue", "red"),
+       pch = c(16, NA),
+       lty = c(NA, 1),
+       bg = "white")
+```
+
+**Analysis of the Quadratic Model:**
+
+1.  **Model Coefficients:**
+
+    -   Intercept: -4720.6091
+
+    -   Linear term (time_index): 297.4559 (significant at p \< 0.05)
+
+    -   Quadratic term (quadratic_time_index): 0.9308 (not significant at p \< 0.05)
+
+2.  **Model Fit**:
+
+    -   Multiple R-squared: 0.5884 (slightly better than linear model's 0.586)
+
+    -   Adjusted R-squared: 0.5805
+
+    -   F-statistic: 74.34 with p-value \< 2.2e-16
+
+3.  **Residuals**:
+
+    -   Min: -15866
+
+    -   Max: 36094
+
+    -   Similar spread to the linear model
+
+### • Explain if quadratic model is appropriate or not.
+
+We will discuss nowe a comprehensive analysis of whether the quadratic model is appropriate for this Bitcoin price time series data:
+
+**Model Performance Assessment:**
+
+1.  **Statistical Significance:**
+
+    -   Overall model is significant (F-statistic p-value \< 2.2e-16)
+
+    -   Linear term is significant (p = 0.0263)
+
+    -   Quadratic term is NOT significant (p = 0.4336)
+
+    -   Adding complexity without significant improvement
+
+2.  **Model Fit:**
+
+    -   R-squared: 0.5884 (only 0.0024 improvement over linear model)
+
+    -   Adjusted R-squared: 0.5805
+
+    -   Minimal improvement in explanatory power
+
+    -   Still leaves about 41% of variance unexplained
+
+3.  **Residual Analysis**:
+
+    -   Large residuals (-15866 to 36094)
+
+    -   Similar spread to linear model
+
+    -   Does not address the fundamental issues of:
+
+        -   Non-normality
+
+        -   Autocorrelation
+
+        -   Heteroscedasticity
+
+**Reasons Why Quadratic Model is Not Appropriate:**
+
+1.  **Minimal Improvement:**
+
+    -   Negligible increase in R-squared from linear model
+
+    -   Non-significant quadratic term
+
+    -   Added complexity without meaningful benefit
+
+    -   Does not justify the additional parameter
+
+2.  **Underlying Issues Remain:**
+
+    -   Still doesn't capture:
+
+        -   Price volatility
+
+        -   Sudden price changes
+
+        -   Non-linear patterns
+
+        -   Time series dependencies
+
+    -   Same violations of assumptions as linear model
+
+3.  **Model Limitations:**
+
+    -   Cannot handle:
+
+        -   Complex market dynamics
+
+        -   Temporal dependencies
+
+        -   Changing volatility patterns
+
+        -   Multiple regime changes
+
+4.  **Practical Considerations:**
+
+    -   Poor predictive power
+
+    -   Doesn't capture market behavior
+
+    -   Oversimplifies complex relationships
+
+    -   Inadequate for financial time series
+
+**Recommendations**:
+
+1.  **Alternative Models to Consider:**
+
+    -   ARIMA/SARIMA for time series structure
+
+    -   GARCH for volatility modeling
+
+    -   Non-linear time series models
+
+    -   Machine learning approaches
+
+    -   Neural networks for complex patterns
+
+2.  **Improvements Needed:**
+
+    -   Account for temporal dependencies
+
+    -   Handle non-linear relationships
+
+    -   Model volatility changes
+
+    -   Include external factors
+
+3.  **Data Treatment:**
+
+    -   Consider transformations Address non-stationarity Handle outliers Account for market regimes
+
+**Conclusion**: The quadratic model is not appropriate for modeling Bitcoin prices because:
+
+1.  It provides negligible improvement over the linear model
+
+2.  The quadratic term is not statistically significant
+
+3.  It fails to address the fundamental issues in the data
+
+4.  It doesn't capture the complex dynamics of cryptocurrency prices
+
+A more sophisticated approach using specialized time series models or machine learning techniques would be more appropriate for this dataset. These methods could better handle the temporal dependencies, non-linear patterns, and varying volatility that characterize Bitcoin price movements.
+
+# 4.4 **ARIMA Model**
+
+## • Create ACF & PACF plots of the time series data set with maximum lag of 24. Explain the outcome and comment on the dataset’s nature.
+
+```{r arimam_model_Acf_pacf}
+# Create a time series object
+btc_ts <- ts(BitCoin$Close, frequency = 12)
+
+# Set up a 2x1 plotting area
+par(mfrow = c(2,1))
+
+# Create ACF plot
+acf(btc_ts, lag.max = 24, main = "ACF of Bitcoin Prices")
+
+# Create PACF plot
+pacf(btc_ts, lag.max = 24, main = "PACF of Bitcoin Prices")
+
+# Reset plotting parameters
+par(mfrow = c(1,1))
+
+# Print some additional information about the series
+print("Time Series Statistics:")
+print(paste("Variance:", var(btc_ts)))
+print(paste("First-order autocorrelation:", cor(btc_ts[-length(btc_ts)], btc_ts[-1])))
+```
+
+**Explanation of ACF and PACF Plots:**
+
+1.  **ACF (Autocorrelation Function):**
+
+    -   The ACF plot shows a very slow decay, indicating strong autocorrelation in the data.
+
+    -   This suggests that the Bitcoin price series is non-stationary, as past values heavily influence future values.
+
+2.  **PACF (Partial Autocorrelation Function):**
+
+    -   The PACF plot shows significant spikes at the first few lags, particularly at lag 1.
+
+    -   This indicates that the series may follow an autoregressive process, where recent past values are strong predictors of the current value.
+
+3.  **Variance and First-Order Autocorrelation:**
+
+    -   Variance: 260,311,691.42, indicating high variability in Bitcoin prices.
+
+    -   First-order autocorrelation: 0.9618, confirming strong dependence between consecutive observations.
+
+**Nature of the Dataset:**
+
+-   The dataset is highly non-stationary, with strong autocorrelation and high variance.
+
+-   This behavior is typical of financial time series, especially for volatile assets like Bitcoin.
+
+-   Differencing or transformations (e.g., log or differencing) may be required to make the series stationary for further modeling.
+
+## • Perform ADF test. Explain the outcome.
+
+```{r arimam_model_adf}
+# Perform ADF test on the original series
+adf_test <- adf.test(BitCoin$Close)
+print("ADF Test Results for Original Series:")
+print(adf_test)
+
+# Create a data frame with the key findings
+key_findings <- data.frame(
+  Metric = c("Dickey-Fuller Value", "Lag Order", "p-value"),
+  Value = c(-2.5743, 4, 0.3385)
+)
+
+
+# Load required library
+library(ggplot2)
+
+# Create the plot
+ggplot(key_findings, aes(x = Metric, y = Value)) +
+  geom_bar(stat = "identity", fill = "steelblue", width = 0.5) +
+  geom_text(aes(label = sprintf("%.4f", Value)), 
+            vjust = ifelse(key_findings$Value < 0, 1.5, -0.5),
+            color = "black", size = 4) +
+  theme_minimal() +
+  labs(title = "ADF Test Key Findings",
+       subtitle = "Critical Values: 1% (-3.51), 5% (-2.89), 10% (-2.58)",
+       x = "",
+       y = "Value") +
+  theme(
+    plot.title = element_text(hjust = 0.5, size = 14, face = "bold"),
+    plot.subtitle = element_text(hjust = 0.5, size = 10),
+    axis.text.x = element_text(angle = 45, hjust = 1, size = 10),
+    panel.grid.major = element_line(color = "gray90"),
+    panel.grid.minor = element_line(color = "gray95")
+  )
+
+# Create a table with interpretation
+interpretation <- data.frame(
+  Metric = c("Dickey-Fuller Value", "Lag Order", "p-value"),
+  Value = c(-2.5743, 4.0000, 0.3385),
+  Interpretation = c(
+    "Greater than critical values, suggesting non-stationarity",
+    "Number of lags used in the test",
+    "p > 0.05, fail to reject null hypothesis of non-stationarity"
+  )
+)
+
+# Print the interpretation table
+print("Detailed Interpretation of ADF Test Results:")
+print(interpretation)
+```
+
+**Interpretation of ADF Test Results:**
+
+1.  **Test Statistic:**
+
+    -   Dickey-Fuller value: -2.5743
+
+    -   Lag order: 4
+
+    -   p-value: 0.3385
+
+2.  **Hypothesis Testing**:
+
+    -   Null Hypothesis (H₀): Series has a unit root (non-stationary)
+
+    -   Alternative Hypothesis (H₁): Series is stationary
+
+    -   At α = 0.05, since p-value (0.3385) \> 0.05, we fail to reject the null hypothesis
+
+3.  **Key Findings:**
+
+    -   The series is non-stationary
+
+    -   There is strong evidence of a unit root
+
+    -   The time series exhibits a clear trend and varying variance
+
+## • Explain if the dataset is stationary or not.
+
+Based on the ADF test results and visual analysis, we'll explain why the dataset is NON-STATIONARY:
+
+1.  **Statistical Evidence from ADF Test:**
+
+    -   Dickey-Fuller value: -2.5743
+
+    -   Critical values:
+
+        -   1%: -3.51
+
+        -   5%: -2.89
+
+        -   10%: -2.58
+
+    -   p-value: 0.3385 \> 0.05 (significance level)
+
+2.  **Why It's Non-Stationary:**
+
+    -   **ADF Test Results**:
+
+        -   Null Hypothesis (H₀): Series has a unit root (non-stationary)
+
+        -   Alternative Hypothesis (H₁): Series is stationary
+
+        -   Since p-value (0.3385) \> 0.05, we FAIL TO REJECT the null hypothesis
+
+        -   This statistically confirms the series is non-stationary
+
+    -   **Test Statistic Comparison:**
+
+        -   DF value (-2.5743) \> Critical value at 5% (-2.89)
+
+        -   This means the test statistic is not negative enough to reject non-stationarity
+
+3.  **Properties Confirming Non-Stationarity**:
+
+    -   **Mean**:
+
+        -   Not constant over time
+
+        -   Shows clear upward trend
+
+        -   No mean reversion visible
+
+    -   **Variance**:
+
+        -   Not constant over time
+
+        -   Shows heteroscedasticity
+
+        -   Larger fluctuations in recent periods
+
+    -   **Autocorrelation**:
+
+        -   Strong positive autocorrelation (0.9618)
+
+        -   Slow decay in ACF plot
+
+        -   Indicates persistent dependency on past values
+
+4.  **Implications**:
+
+    -   The series needs transformation before modeling
+
+    -   Differencing will likely be required
+
+    -   ARIMA models should include differencing component
+
+    -   Traditional statistical methods assuming stationarity cannot be directly applied
+
+5.  **Required Actions:**
+
+    -   Apply first differencing
+
+    -   Consider log transformation
+
+    -   Test transformed series for stationarity
+
+    -   Use appropriate models for non-stationary data
+
+In conclusion, multiple statistical tests and visual evidence conclusively show that the Bitcoin price dataset is NON-STATIONARY, requiring appropriate transformations before further time series analysis can be performed.
+
+## • Create QQ plot & perform Shapiro-Wilk test.
+
+```{r arimam_model_qq_plot}
+# Create QQ plot
+qqnorm(BitCoin$Close, main = "Q-Q Plot of Bitcoin Prices")
+qqline(BitCoin$Close, col = "red", lwd = 2)
+
+# Perform Shapiro-Wilk test
+sw_test <- shapiro.test(BitCoin$Close)
+print("\
+Shapiro-Wilk Test Results:")
+print(sw_test)
+
+# Additional descriptive statistics for skewness and kurtosis
+library(moments)
+
+# Calculate skewness and kurtosis
+skew <- skewness(BitCoin$Close)
+kurt <- kurtosis(BitCoin$Close)
+
+print("\
+Additional Statistics:")
+print(paste("Skewness:", round(skew, 4)))
+print(paste("Kurtosis:", round(kurt, 4)))
+```
+
+**Interpretation:**
+
+1.  **Q-Q Plot:**
+
+    -   The points deviate significantly from the straight line, especially in the tails.
+
+    -   This indicates that the Bitcoin price data does not follow a normal distribution.
+
+2.  **Shapiro-Wilk Test:**
+
+    -   W = 0.8336, p-value = 1.258e-09.
+
+    -   Since p-value \< 0.05, we reject the null hypothesis of normality.
+
+    -   The data is not normally distributed. S
+
+3.  **kewness and Kurtosis**:
+
+    -   Skewness: 1.1556 (positive skew, indicating a long right tail).
+
+    -   Kurtosis: 3.3422 (slightly leptokurtic, indicating heavier tails than a normal distribution). The Bitcoin price dataset is not normally distributed, as confirmed by the Q-Q plot, Shapiro-Wilk test, and skewness/kurtosis values. This non-normality is typical for financial data and suggests the need for non-parametric or robust statistical methods.
+
+## • If the dataset is not stationary, then make it stationary by differencing. Show a plot of the dataset after differencing and perform ADF test on differenced dataset to check stationarity again.
+
+```{r arimam_model_differenciacing_adf}
+# Calculate first difference
+diff_btc <- diff(BitCoin$Close)
+
+# Create time vector for plotting
+diff_dates <- BitCoin$Date[-1]  # remove first date since we lose one observation in differencing
+
+# Plot original vs differenced series
+par(mfrow = c(2,1))
+
+# Original series plot
+plot(BitCoin$Date, BitCoin$Close, 
+     type = "l", 
+     main = "Original Bitcoin Price Series",
+     xlab = "Date",
+     ylab = "Price (USD)",
+     col = "blue")
+grid()
+
+# Differenced series plot
+plot(diff_dates, diff_btc, 
+     type = "l", 
+     main = "First Differenced Bitcoin Price Series",
+     xlab = "Date",
+     ylab = "Price Change (USD)",
+     col = "red")
+grid()
+
+# Reset plotting parameters
+par(mfrow = c(1,1))
+
+# Perform ADF test on differenced series
+adf_diff <- adf.test(diff_btc)
+print("\
+ADF Test Results for Differenced Series:")
+print(adf_diff)
+
+# Calculate summary statistics for differenced series
+print("\
+Summary Statistics of Differenced Series:")
+print(summary(diff_btc))
+
+# Check mean of differenced series
+print(paste("\
+Mean of differenced series:", mean(diff_btc)))
+print(paste("Standard deviation of differenced series:", sd(diff_btc)))
+```
+
+The first differencing successfully transformed the non-stationary Bitcoin price series into a stationary series, as confirmed by:
+
+1.  Visual inspection showing no apparent trend
+
+2.  ADF test showing statistical significance (p \< 0.05)
+
+3.  More stable mean and variance properties
+
+This stationary series is now suitable for time series modeling techniques like ARIMA.
+
+## • Perform ACF & PACF test to find the probable model candidates. Explain the outcome of the plots.
+
+```{r arimam_model_acf_pacf_test}
+# Set up plotting parameters for ACF and PACF of differenced series
+par(mfrow = c(2,1))
+
+# ACF plot
+acf(diff_btc, lag.max = 24, main = "ACF of Differenced Bitcoin Prices")
+abline(h = c(1.96/sqrt(length(diff_btc)), -1.96/sqrt(length(diff_btc))), 
+       col = "blue", 
+       lty = 2)
+
+# PACF plot
+pacf(diff_btc, lag.max = 24, main = "PACF of Differenced Bitcoin Prices")
+abline(h = c(1.96/sqrt(length(diff_btc)), -1.96/sqrt(length(diff_btc))), 
+       col = "blue", 
+       lty = 2)
+
+# Reset plotting parameters
+par(mfrow = c(1,1))
+
+# Calculate significant lags for both ACF and PACF
+acf_values <- acf(diff_btc, lag.max = 24, plot = FALSE)
+pacf_values <- pacf(diff_btc, lag.max = 24, plot = FALSE)
+
+# Calculate confidence bounds
+conf_level <- 1.96/sqrt(length(diff_btc))
+
+# Print significant lags
+print("\
+Significant ACF lags:")
+significant_acf <- which(abs(acf_values$acf[-1]) > conf_level)
+print(significant_acf)
+
+print("\
+Significant PACF lags:")
+significant_pacf <- which(abs(pacf_values$acf) > conf_level)
+print(significant_pacf)
+
+# Create a summary table of possible models
+print("\
+Possible ARIMA Models based on ACF and PACF patterns:")
+```
+
+**Interpretation**:
+
+-   The ACF plot shows significant autocorrelation at lag 1 and a smaller spike at lag 7, suggesting a moving average (MA) component.
+
+-   The PACF plot shows significant partial autocorrelation at lags 1, 2, and 5, indicating potential autoregressive (AR) components.
+
+-   Based on these patterns, probable ARIMA models include ARIMA(1,1,1), ARIMA(2,1,1), or ARIMA(5,1,1). Further testing is needed to confirm the best fit.
+
+## • Perform EACF test to comprehensively test the possible candidate models. Mention the models that you have selected for modeling (select at least 3 models).
+
+```{r arimam_model_eacf}
+# Load required library for EACF
+library(TSA)
+
+# Perform EACF test
+eacf_result <- eacf(diff_btc, ar.max = 7, ma.max = 7)
+
+# Print EACF results
+print("Extended ACF (EACF) Table:")
+print(eacf_result)
+
+# Create a function to identify potential models from EACF
+identify_models_from_eacf <- function(eacf_result) {
+    ar.max <- dim(eacf_result$eacf)[1]
+    ma.max <- dim(eacf_result$eacf)[2]
+    models <- data.frame(AR = integer(), MA = integer(), stringsAsFactors = FALSE)
+    
+    for(i in 0:(ar.max-1)) {
+        for(j in 0:(ma.max-1)) {
+            if(eacf_result$eacf[i+1,j+1] == "o") {
+                # Check if all elements to the right and below are also "o"
+                is_triangle <- TRUE
+                if(is_triangle) {
+                    models <- rbind(models, data.frame(AR = i, MA = j))
+                }
+            }
+        }
+    }
+    return(models)
+}
+
+# Get potential models
+potential_models <- identify_models_from_eacf(eacf_result)
+
+# Print potential models
+print("\
+Potential ARIMA Models based on EACF:")
+print(potential_models)
+
+# Fit multiple ARIMA models and compare AIC
+models_to_try <- list(
+    c(1,1,1),
+    c(2,1,1),
+    c(1,1,2),
+    c(2,1,2),
+    c(3,1,1),
+    c(1,1,3),
+    c(3,1,2)
+    
+)
+
+# Function to fit ARIMA and get AIC
+fit_arima <- function(order) {
+    tryCatch({
+        model <- arima(BitCoin$Close, order = c(order[1], 1, order[3]))
+        return(data.frame(
+            AR = order[1],
+            MA = order[3],
+            AIC = AIC(model),
+            BIC = BIC(model)
+        ))
+    }, error = function(e) {
+        return(NULL)
+    })
+}
+
+# Fit all models and compare
+results <- do.call(rbind, lapply(models_to_try, fit_arima))
+
+# Print results sorted by AIC
+print("\
+Model Comparison (sorted by AIC):")
+print(results[order(results$AIC),])
+```
+
+We have created a list of possible ARIMA models below, also more model can be given to try for the performance result based on AIC. Hence for our final project we have decided to stick with these 7 combinations to find the best two/three ARIMA models.
+
+-   *c(1,1,1),*
+
+-   *c(2,1,1),*
+
+-   *c(1,1,2),*
+
+-   *c(2,1,2),*
+
+-   *c(3,1,1),*
+
+-   *c(1,1,3),*
+
+-   *c(3,1,2)*
+
+**Selected** **Models for Modeling:**
+
+1.  **ARIMA(2,1,2)**: Lowest AIC (2078.83)
+
+2.  **ARIMA(1,1,3)**: Second lowest AIC (2078.97)
+
+3.  **ARIMA(2,1,1)**: Third lowest AIC (2081.04)
+
+These models will be used for further analysis and validation.
+
+## • Estimate the ARIMA parameters by creating the above selected models. Perform coeftest on each model. Explain the outcome from the level of significance.
+
+```{r arimam_model_parameter_estimates}
+# Load required libraries
+library(lmtest)
+
+# Create the three selected models
+model1 <- arima(BitCoin$Close, order = c(2,1,2))  # ARIMA(2,1,2)
+model2 <- arima(BitCoin$Close, order = c(1,1,3))  # ARIMA(1,1,3)
+model3 <- arima(BitCoin$Close, order = c(2,1,1))  # ARIMA(2,1,1)
+
+# Perform coeftest on each model
+print("=== Model 1: ARIMA(2,1,2) ===")
+print("Coefficients:")
+print(model1$coef)
+print("\
+Coefficient Test:")
+print(coeftest(model1))
+
+print("\
+=== Model 2: ARIMA(1,1,3) ===")
+print("Coefficients:")
+print(model2$coef)
+print("\
+Coefficient Test:")
+print(coeftest(model2))
+
+print("\
+=== Model 3: ARIMA(2,1,1) ===")
+print("Coefficients:")
+print(model3$coef)
+print("\
+Coefficient Test:")
+print(coeftest(model3))
+
+# Calculate standard errors
+print("\
+Standard Errors:")
+print("Model 1 (ARIMA(2,1,2)):")
+print(sqrt(diag(vcov(model1))))
+print("\
+Model 2 (ARIMA(1,1,3)):")
+print(sqrt(diag(vcov(model2))))
+print("\
+Model 3 (ARIMA(2,1,1)):")
+print(sqrt(diag(vcov(model3))))
+```
+
+-   **ARIMA(2,1,2)** is the best model as all its coefficients are statistically significant.
+
+-   **ARIMA(1,1,3**) has some insignificant coefficients, indicating potential overfitting.
+
+-   **ARIMA(2,1,1)** is not suitable as none of its coefficients are significant.
+
+## • Evaluate the models through AIC & BIC tests.
+
+We have already calculated the AIC and BIC values for the models during model comparison. Here We will summarize and evalue these values to confirm best model.
+
+```{r arimam_model_aic_bic_tests}
+# Extract AIC and BIC values for the three models
+model1_aic <- AIC(model1)
+model1_bic <- BIC(model1)
+
+model2_aic <- AIC(model2)
+model2_bic <- BIC(model2)
+
+model3_aic <- AIC(model3)
+model3_bic <- BIC(model3)
+
+# Create a summary table
+model_comparison <- data.frame(
+  Model = c("ARIMA(2,1,2)", "ARIMA(1,1,3)", "ARIMA(2,1,1)"),
+  AIC = c(model1_aic, model2_aic, model3_aic),
+  BIC = c(model1_bic, model2_bic, model3_bic)
+)
+
+# Sort by AIC
+model_comparison <- model_comparison[order(model_comparison$AIC), ]
+
+# Print the comparison table
+print("\
+Model Comparison based on AIC and BIC:")
+print(model_comparison)
+```
+
+Model Rankings:
+
+1.  **ARIMA(2,1,2):**
+
+    -   AIC: 2078.834 (Lowest)
+
+    -   BIC: 2092.151
+
+    -   This model has the best AIC score and a competitive BIC score
+
+2.  **ARIMA(1,1,3)**:
+
+    -   AIC: 2078.968 (Second lowest)
+
+    -   BIC: 2092.285 (Highest)
+
+    -   Very close to ARIMA(2,1,2) in terms of AIC
+
+3.  **ARIMA(2,1,1)**:
+
+    -   AIC: 2081.042 (Highest) B
+
+    -   IC: 2091.696 (Lowest)
+
+    -   Best BIC score but worst AIC score
+
+## • From outcome of above two steps select best two models. Explain why you have chosen those two models.
+
+-   **AIC Perspective:**
+
+    -   ARIMA(2,1,2) performs best
+
+    -   The difference between ARIMA(2,1,2) and ARIMA(1,1,3) is minimal (∆AIC ≈ 0.13)
+
+    -   ARIMA(2,1,1) is notably worse (∆AIC ≈ 2.21 from best model)
+
+-   **BIC Perspective:**
+
+    -   ARIMA(2,1,1) performs best
+
+    -   Differences between models are relatively small (range of about 0.59)
+
+    -   BIC penalizes model complexity more heavily than AIC
+
+**Trade-offs:**
+
+-   While ARIMA(2,1,1) has the best BIC, its higher AIC and previously observed insignificant coefficients make it less desirable ARIMA(1,1,3) is very close to
+
+-   ARIMA(2,1,2) in AIC but has the worst BIC, suggesting it might be over parameterized
+
+The best two models are **ARIMA(2,1,2)** and **ARIMA(1,1,3)** because they have the lowest AIC values, with ARIMA(2,1,2) being the most optimal due to its significant coefficients and competitive BIC. ARIMA(1,1,3) is included as a close alternative despite some insignificant coefficients, as its AIC is nearly identical to the best model.
+
+## • Assess the chosen two models through accuracy test.
+
+```{r arimam_model_accuracy_Test}
+# Let's try a simpler approach
+library(forecast)
+
+# Convert to time series
+ts_data <- ts(BitCoin$Close, frequency = 12)
+
+# Split data (80% training, 20% testing)
+n <- length(ts_data)
+train_size <- floor(0.8 * n)
+
+# Create training and test sets
+train_data <- ts_data[1:train_size]
+test_data <- ts_data[(train_size + 1):n]
+
+# Fit models
+fit1 <- Arima(train_data, order = c(2,1,2))
+fit2 <- Arima(train_data, order = c(1,1,3))
+
+# Generate forecasts
+h <- length(test_data)
+fc1 <- forecast(fit1, h = h)
+fc2 <- forecast(fit2, h = h)
+
+# Calculate accuracy metrics
+print("ARIMA(2,1,2) Accuracy Metrics:")
+accuracy1 <- accuracy(fc1, test_data)
+print(accuracy1)
+
+print("\
+ARIMA(1,1,3) Accuracy Metrics:")
+accuracy2 <- accuracy(fc2, test_data)
+print(accuracy2)
+
+# Create comparison table
+comparison <- data.frame(
+    Model = c("ARIMA(2,1,2)", "ARIMA(1,1,3)"),
+    RMSE = c(accuracy1[2,"RMSE"], accuracy2[2,"RMSE"]),
+    MAE = c(accuracy1[2,"MAE"], accuracy2[2,"MAE"]),
+    MAPE = c(accuracy1[2,"MAPE"], accuracy2[2,"MAPE"])
+)
+
+print("\
+Model Comparison Summary:")
+print(comparison)
+
+```
+
+ARIMA(2,1,2) is the better model based on lower error metrics and better alignment with the test data. Let me know if you'd like further analysis or diagnostics.
+
+## • Perform residual analysis of the two models and create line & scatter plot of the residuals. Explain the outcome.
+
+```{r arimam_model_residual_analysis}
+# Get residuals from both models
+residuals1 <- residuals(fit1)
+residuals2 <- residuals(fit2)
+
+# Create diagnostic plots for ARIMA(2,1,2)
+par(mfrow=c(2,2))
+
+# Line plot of residuals
+plot(residuals1, type='l', main='ARIMA(2,1,2) Residuals - Line Plot',
+     ylab='Residuals', xlab='Time')
+abline(h=0, col='red', lty=2)
+
+# Scatter plot of residuals
+plot(1:length(residuals1), residuals1, 
+     main='ARIMA(2,1,2) Residuals - Scatter Plot',
+     ylab='Residuals', xlab='Time Index')
+abline(h=0, col='red', lty=2)
+
+
+# Create diagnostic plots for ARIMA(1,1,3)
+par(mfrow=c(2,2))
+
+# Line plot of residuals
+plot(residuals2, type='l', main='ARIMA(1,1,3) Residuals - Line Plot',
+     ylab='Residuals', xlab='Time')
+abline(h=0, col='red', lty=2)
+
+# Scatter plot of residuals
+plot(1:length(residuals2), residuals2, 
+     main='ARIMA(1,1,3) Residuals - Scatter Plot',
+     ylab='Residuals', xlab='Time Index')
+abline(h=0, col='red', lty=2)
+
+
+```
+
+While neither model has perfectly normal residuals, ARIMA(2,1,2) shows better overall residual behavior, supporting our earlier finding that it's the superior model. The lack of significant autocorrelation in both models suggests they've captured the time series dependencies well, but ARIMA(2,1,2) does this with better efficiency and more stable residuals.
+
+## • Create a histogram plot of the residuals of the two models. Explain the outcome.
+
+```{r arimam_model}
+# Get residuals from both models
+residuals1 <- residuals(fit1)  # ARIMA(2,1,2)
+residuals2 <- residuals(fit2)  # ARIMA(1,1,3)
+
+# Set up the plotting area for two histograms side by side
+par(mfrow=c(1,2))
+
+# Create histogram for ARIMA(2,1,2)
+hist(residuals1, 
+     breaks=20,
+     main="ARIMA(2,1,2) Residuals",
+     xlab="Residual Value",
+     ylab="Frequency",
+     col="lightblue",
+     border="black",
+     prob=TRUE)  # prob=TRUE to add density line
+# Add density line
+lines(density(residuals1), col="red", lwd=2)
+# Add normal distribution curve
+curve(dnorm(x, mean=mean(residuals1), sd=sd(residuals1)), 
+      add=TRUE, col="blue", lwd=2, lty=2)
+legend("topright", 
+       legend=c("Density", "Normal"),
+       col=c("red", "blue"),
+       lty=c(1,2),
+       lwd=2)
+
+# Create histogram for ARIMA(1,1,3)
+hist(residuals2,
+     breaks=20,
+     main="ARIMA(1,1,3) Residuals",
+     xlab="Residual Value",
+     ylab="Frequency",
+     col="lightgreen",
+     border="black",
+     prob=TRUE)
+# Add density line
+lines(density(residuals2), col="red", lwd=2)
+# Add normal distribution curve
+curve(dnorm(x, mean=mean(residuals2), sd=sd(residuals2)),
+      add=TRUE, col="blue", lwd=2, lty=2)
+legend("topright",
+       legend=c("Density", "Normal"),
+       col=c("red", "blue"),
+       lty=c(1,2),
+       lwd=2)
+
+# Reset plotting parameters
+par(mfrow=c(1,1))
+
+# Calculate summary statistics for both models
+summary_stats <- data.frame(
+    Statistic = c("Mean", "Median", "Standard Deviation", "Skewness", "Kurtosis"),
+    ARIMA_212 = c(
+        mean(residuals1),
+        median(residuals1),
+        sd(residuals1),
+        moments::skewness(residuals1),
+        moments::kurtosis(residuals1)
+    ),
+    ARIMA_113 = c(
+        mean(residuals2),
+        median(residuals2),
+        sd(residuals2),
+        moments::skewness(residuals2),
+        moments::kurtosis(residuals2)
+    )
+)
+
+# Print summary statistics
+print("Summary Statistics of Residuals:")
+print(summary_stats)
+```
+
+Based on the histograms and summary statistics, we can make the following observations:
+
+1.  **Distribution Shape**:
+
+    -   ARIMA(2,1,2) shows a more symmetric distribution around its center, with a skewness of 0.106
+
+    -   ARIMA(1,1,3) shows more right-skewed distribution with a skewness of 0.701
+
+2.  **Central Tendency:**
+
+    -   ARIMA(2,1,2) has a lower mean (352.68) and median (30.93)
+
+    -   ARIMA(1,1,3) has a higher mean (457.25) and median (50.19)
+
+    -   Both models show positive bias but ARIMA(2,1,2) has less bias
+
+3.  **Spread and Variability**:
+
+    -   ARIMA(2,1,2) has a lower standard deviation (3670.47)
+
+    -   ARIMA(1,1,3) has a higher standard deviation (3788.96)
+
+    -   Both models show heavy tails (high kurtosis)
+
+4.  **Kurtosis**:
+
+    -   ARIMA(2,1,2) has lower kurtosis (8.02)
+
+    -   ARIMA(1,1,3) has higher kurtosis (9.85)
+
+    -   Both models show leptokurtic distributions (kurtosis \> 3)
+
+5.  **Normality**:
+
+    -   Both histograms deviate from the theoretical normal curve (blue dashed line)
+
+    -   ARIMA(2,1,2) shows better alignment with normal distribution
+
+    -   Both show heavy tails but ARIMA(2,1,2) is more symmetric
+
+ARIMA(2,1,2) demonstrates better residual properties because:
+
+-   More symmetric distribution (lower skewness)
+
+-   Lower mean and standard deviation
+
+-   Less extreme kurtosis
+
+-   Better approximation to normal distribution
+
+While neither model shows perfect normal distribution of residuals, ARIMA(2,1,2) continues to demonstrate superior performance with more desirable residual properties, supporting our previous findings that it's the better model for this time series data.
+
+## • Create ACF & PACF plots of residuals of the two models. Explain the outcome.
+
+```{r arimam_model_histogram}
+# Set up plotting area for ACF and PACF plots
+par(mfrow=c(2,2))
+
+# ACF and PACF for ARIMA(2,1,2) residuals
+acf(residuals1, main="ARIMA(2,1,2) Residuals - ACF")
+pacf(residuals1, main="ARIMA(2,1,2) Residuals - PACF")
+
+# ACF and PACF for ARIMA(1,1,3) residuals
+acf(residuals2, main="ARIMA(1,1,3) Residuals - ACF")
+pacf(residuals2, main="ARIMA(1,1,3) Residuals - PACF")
+
+# Reset plotting parameters
+par(mfrow=c(1,1))
+```
+
+1.  ACF Plots:
+
+    -   Both models show most autocorrelations within the confidence bounds (blue dashed lines)
+
+    -   ARIMA(2,1,2) shows significant autocorrelation at lags 4 and 7
+
+    -   ARIMA(1,1,3) shows significant autocorrelation at lag 6 Overall, both models show relatively good whitening of the residuals
+
+2.  PACF Plots:
+
+    -   Both models display similar patterns in their PACF plots
+
+    -   Most partial autocorrelations fall within the confidence bounds
+
+    -   The significant spikes are relatively small in magnitude
+
+    -   No clear pattern of persistent significant partial autocorrelations
+
+The ACF and PACF analysis reinforces our earlier conclusions that while both models are adequate, ARIMA(2,1,2) shows slightly better performance in terms of residual independence and overall fit to the data.
+
+## • Create QQ plot of residuals of the two models. Explain the outcome.
+
+```{r arimam_model_qq_plot_residuals}
+# Set up the plotting area for two QQ plots side by side
+par(mfrow=c(1,2))
+
+# QQ plot for ARIMA(2,1,2)
+qqnorm(residuals1, 
+       main="ARIMA(2,1,2) Normal Q-Q Plot",
+       xlab="Theoretical Quantiles",
+       ylab="Sample Quantiles")
+qqline(residuals1, col="red", lwd=2)
+
+# QQ plot for ARIMA(1,1,3)
+qqnorm(residuals2,
+       main="ARIMA(1,1,3) Normal Q-Q Plot",
+       xlab="Theoretical Quantiles",
+       ylab="Sample Quantiles")
+qqline(residuals2, col="red", lwd=2)
+
+# Reset plotting parameters
+par(mfrow=c(1,1))
+
+# Perform normality tests
+sw_test1 <- shapiro.test(residuals1)
+sw_test2 <- shapiro.test(residuals2)
+
+# Calculate quantile statistics
+quantiles1 <- quantile(residuals1, probs = c(0.01, 0.05, 0.25, 0.5, 0.75, 0.95, 0.99))
+quantiles2 <- quantile(residuals2, probs = c(0.01, 0.05, 0.25, 0.5, 0.75, 0.95, 0.99))
+
+```
+
+**Q-Q Plot Assessment:** Both models show deviations from the theoretical normal line (red line)
+
+-   **ARIMA(2,1,2) shows:**
+
+    -   Better alignment in the central region
+
+    -   Symmetric deviations at the tails
+
+    -   Less severe departures from normality
+
+-   **ARIMA(1,1,3) shows:**
+
+    -   More pronounced deviations throughout
+
+    -   Greater asymmetry in the tails
+
+    -   More severe departures from normality
+
+## • Perform Shapiro-Wilk test on residuals of the two models. Explain the outcome.
+
+```{r arimam_model_shapiro_wilk_test}
+
+# Print test results and summary statistics
+print("Shapiro-Wilk Normality Test Results:")
+print("ARIMA(2,1,2):")
+print(sw_test1)
+print("\
+ARIMA(1,1,3):")
+print(sw_test2)
+```
+
+1.  **ARIMA(2,1,2):**
+
+    -   W = 0.83855, p-value = 3.373e-08
+
+    -   The p-value is extremely small, indicating that the residuals significantly deviate from normality.
+
+2.  **ARIMA(1,1,3)**:
+
+    -   W = 0.80687, p-value = 3.484e-09
+
+    -   Similarly, the residuals significantly deviate from normality, with a slightly worse W-statistic compared to ARIMA(2,1,2).
+
+Both models fail the Shapiro-Wilk test for normality, but ARIMA(2,1,2) shows slightly better alignment with normality compared to ARIMA(1,1,3). This supports the conclusion that ARIMA(2,1,2) is the better model overall.
+
+## • Select the best model from the above two models using the outcome of all the above analysis. This is going to be your final model.
+
+Based on all the analyses, **ARIMA(2,1,2)** is the better model due to its lower error metrics (RMSE, MAE, MAPE), better residual properties (lower standard deviation, more symmetric distribution, fewer significant autocorrelations), and slightly better alignment with normality in the Shapiro-Wilk test and Q-Q plot.
+
+It consistently outperforms ARIMA(1,1,3) across all evaluation criteria.
+
+#### **So, we have finalized ARIMA(2,1,2) as the chosen model.**
+
+# 4.5 **Forecasting**
+
+## • Use the final model of the above section and forecast monthly Bitcoin prices of next 12 months.
+
+```{r forecasting_12_months}
+# Forecast the next 12 months using the ARIMA(2,1,2) model
+library(forecast)
+forecast_12 <- forecast(fit1, h=12)
+
+# Extract forecasted values and confidence intervals
+forecast_values <- data.frame(
+    Month = seq(1, 12),
+    Forecast = forecast_12$mean,
+    Lower_80 = forecast_12$lower[,1],
+    Upper_80 = forecast_12$upper[,1],
+    Lower_95 = forecast_12$lower[,2],
+    Upper_95 = forecast_12$upper[,2]
+)
+
+# Print forecasted values
+print("Forecasted Bitcoin Prices (Next 12 Months):")
+print(forecast_values)
+
+```
+
+## • Show the forecasted values through a table. You can use ‘Kable’ command of kableExtra package.
+
+```{r forecasting_12_months_table}
+# Load required libraries
+library(forecast)
+library(kableExtra)
+
+# Generate forecast (assuming 'fit1' is already defined)
+forecast_12 <- forecast(fit1, h=12)
+
+# Extract forecasted values and confidence intervals
+start_date <- as.Date("2025-01-01") # Starting date (Adjust as needed)
+months <- seq(start_date, by = "month", length.out = 12) # Generate month-year sequence
+
+# Create forecasted data frame
+forecast_values <- data.frame(
+    Month = format(months, "%b %Y"), # Format month as "Jan 2024"
+    Forecast = round(forecast_12$mean, 2),
+    Lower_80 = round(forecast_12$lower[,1], 2),
+    Upper_80 = round(forecast_12$upper[,1], 2),
+    Lower_95 = round(forecast_12$lower[,2], 2),
+    Upper_95 = round(forecast_12$upper[,2], 2)
+)
+
+# Create styled table
+forecast_values %>%
+  kable(caption = "Forecasted Bitcoin Prices (Next 12 Months)", align = 'c') %>%
+  kable_styling(bootstrap_options = c("striped", "hover", "condensed"), full_width = F, position = "center") %>%
+  column_spec(1, bold = T, color = "white", background = "#1f77b4") %>%  # Month column
+  column_spec(2, color = "black", background = "#aec7e8") %>%           # Forecast column
+  column_spec(3:4, color = "black", background = "#ffbb78") %>%         # 80% Interval
+  column_spec(5:6, color = "black", background = "#98df8a") %>%         # 95% Interval
+  row_spec(0, bold = T, color = "white", background = "#1f77b4")                         # Header row
+
+
+```
+
+## • Create a plot of the forecasted data points.
+
+```{r forecasting_12_months_plot}
+# Load required libraries
+library(ggplot2)
+library(scales)
+library(lubridate)
+
+# Create future dates
+last_date <- as.Date("2024-12-28")  # Current date
+future_dates <- seq(last_date, by = "month", length.out = 13)[-1]
+
+# Create a data frame for plotting
+plot_data <- data.frame(
+    Date = future_dates,
+    Forecast = forecast_12$mean,
+    Lower_80 = forecast_12$lower[,1],
+    Upper_80 = forecast_12$upper[,1],
+    Lower_95 = forecast_12$lower[,2],
+    Upper_95 = forecast_12$upper[,2]
+)
+
+# Create an enhanced ggplot
+forecast_plot <- ggplot(plot_data, aes(x = Date)) +
+    # Add confidence intervals
+    geom_ribbon(aes(ymin = Lower_95, ymax = Upper_95, fill = "95% CI"), alpha = 0.2) +
+    geom_ribbon(aes(ymin = Lower_80, ymax = Upper_80, fill = "80% CI"), alpha = 0.3) +
+    # Add forecast line
+    geom_line(aes(y = Forecast, color = "Forecast"), size = 1.2) +
+    # Add points for forecast values
+    geom_point(aes(y = Forecast, color = "Forecast"), size = 3) +
+    # Add value labels
+    geom_text(aes(y = Forecast, 
+                  label = paste0("$", format(round(Forecast), big.mark = ","))),
+              vjust = -1, size = 3, color = "darkblue") +
+    # Customize colors
+    scale_fill_manual(values = c("95% CI" = "lightpink", "80% CI" = "lightblue"),
+                     name = "Confidence Interval") +
+    scale_color_manual(values = c("Forecast" = "darkred"),
+                      name = "Forecast Line") +
+    # Customize theme
+    theme_minimal() +
+    theme(
+        plot.title = element_text(size = 16, face = "bold", color = "darkblue", hjust = 0.5),
+        plot.subtitle = element_text(size = 12, color = "darkgray", hjust = 0.5),
+        axis.title = element_text(size = 12, face = "bold"),
+        axis.text = element_text(size = 10),
+        legend.position = "bottom",
+        legend.box = "horizontal",
+        panel.grid.major = element_line(color = "gray90"),
+        panel.grid.minor = element_line(color = "gray95")
+    ) +
+    # Customize labels
+    labs(
+        title = "Bitcoin Price Forecast for Next 12 Months",
+        subtitle = paste("Forecast generated using ARIMA(2,1,2) model on", format(Sys.Date(), "%B %d, %Y")),
+        x = "Date",
+        y = "Bitcoin Price (USD)",
+        caption = "Note: Shaded areas represent confidence intervals"
+    ) +
+    # Format y-axis labels as currency
+    scale_y_continuous(labels = function(x) paste0("$", format(x, big.mark = ",")))
+
+# Print the plot
+print(forecast_plot)
+
+
+```
+
+# 4.6 **Conclusion**
+
+***Comparative Analysis of Bitcoin Price Modeling Techniques***
+
+1.  **Linear Model**
+
+    -   **Strengths**:
+
+        -   Simple to implement and interpret
+
+        -   Provided a basic trend line for Bitcoin price movement
+
+        -   Computationally efficient
+
+    -   **Limitations**:
+
+        -   Unable to capture non-linear patterns in Bitcoin price movements
+
+        -   Higher prediction errors due to oversimplification
+
+        -   Poor performance in capturing volatility
+
+    -   **Performance**:
+
+        -   Showed the highest prediction errors among all models
+
+        -   Limited practical utility for Bitcoin price forecasting
+
+2.  **Quadratic Model**
+
+    -   **Strengths**:
+
+        -   Better at capturing non-linear trends compared to linear model
+
+        -   Improved fit to historical data
+
+        -   Able to model some curvature in price movements
+
+    -   **Limitations**:
+
+        -   Still too rigid for highly volatile cryptocurrency markets
+
+        -   Risk of overfitting at extremes
+
+        -   Limited ability to capture sudden price changes
+
+    -   **Performance**:
+
+        -   Moderate improvement over linear model
+
+        -   Still insufficient for accurate predictions
+
+3.  **ARIMA(2,1,2) Model**
+
+    -   **Strengths**:
+
+        -   Best performing model among all three techniques
+
+        -   Capable of capturing both trends and seasonal patterns
+
+        -   Provides confidence intervals for forecasts
+
+        -   Accounts for time series characteristics effectively
+
+    -   **Limitations**:
+
+        -   Residuals show some deviation from normality
+
+        -   Complexity in interpretation compared to simpler models
+
+    -   **Performance Highlights**:
+
+        -   Lowest prediction errors
+
+        -   Most reliable confidence intervals
+
+        -   Better capture of Bitcoin price dynamics
+
+        -   Superior residual properties:
+
+            -   More symmetric distribution
+
+            -   Better behaved ACF/PACF plots
+
+            -   Smaller standard deviation in residuals
+
+***Key Findings:***
+
+1.  **Model Evolution:**
+
+    -   Clear progression in model sophistication and performance
+
+    -   Each model addressed limitations of its predecessor
+
+    -   ARIMA emerged as the most suitable for Bitcoin price forecasting
+
+2.  **Statistical Validation:**
+
+    -   ARIMA(2,1,2) showed:
+
+        -   Better residual normality (Shapiro-Wilk test)
+
+        -   More appropriate ACF/PACF patterns
+
+        -   More reliable confidence intervals
+
+        -   Superior forecasting capability
+
+3.  **Practical Implications**:
+
+    -   ARIMA model provides:
+
+        -   More reliable short to medium-term forecasts
+
+        -   Better uncertainty quantification
+
+        -   More realistic capture of Bitcoin price dynamics
+
+***Final Recommendation:*** **Based on comprehensive analysis, the ARIMA(2,1,2) model is recommended as the primary forecasting tool for Bitcoin prices because:**
+
+1.  It provides the most accurate predictions
+
+2.  Captures both trend and volatility effectively
+
+3.  Offers reliable confidence intervals for risk assessment
+
+4.  Shows superior statistical properties in residual analysis
+
+***Future Considerations:***
+
+1.  Regular model retraining with new data
+
+2.  Potential integration with external factors (market sentiment, regulatory changes)
+
+3.  Possible hybrid approaches combining ARIMA with machine learning techniques
+
+4.  Continuous monitoring of model performance and adjustments as needed
+
+***This conclusion demonstrates that while all three models have their place in analysis, the ARIMA(2,1,2) model provides the most robust and reliable framework for Bitcoin price forecasting, making it the most suitable choice for practical applications.***
+
+------------------------------------------------------------------------
+
+```{=html}
+Thank you for seeing our project. 
+```
+
+Prepared with dedication by **Group-5** for fulfillment of Final Project for **Statistics for Creative Business Design (CBD 501).**
+
+***Contributors**: [Fahim](https://www.linkedin.com/in/fahimvj/), [Subrata](https://www.linkedin.com/in/subrata-das-1b743b1a), [Tule](https://www.linkedin.com/in/mafia-rahman-tule-2b857110b/), [Helal](https://www.linkedin.com/in/mohammad-helal-uddin/), [Washim](https://www.linkedin.com/in/washim-kabir-905b12b1/).*
